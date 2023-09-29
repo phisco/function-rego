@@ -25,7 +25,6 @@ type Function struct {
 }
 
 type queryInput struct {
-	Input    *v1beta1.Input                 `json:"input"`
 	Request  *fnv1beta1.RunFunctionRequest  `json:"request"`
 	Response *fnv1beta1.RunFunctionResponse `json:"response"`
 }
@@ -72,7 +71,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1beta1.RunFunctionRe
 		return rsp, nil
 	}
 
-	rs, err := q.Eval(ctx, rego.EvalInput(queryInput{Input: in, Request: req, Response: rsp}))
+	rs, err := q.Eval(ctx, rego.EvalInput(queryInput{Request: req, Response: rsp}))
 
 	if err != nil {
 		response.Fatal(rsp, errors.Wrap(err, "cannot evaluate rego query"))

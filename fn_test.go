@@ -435,6 +435,111 @@ response = object.union(input.response, {"results": results})
 				},
 			},
 		},
+		"ShouldBeAbleToPatchDesiredState": {
+			reason: "The function should be able to patch the desired state preserving the input one",
+			args: args{
+				ctx: context.Background(),
+				req: &fnv1beta1.RunFunctionRequest{
+					Meta: &fnv1beta1.RequestMeta{Tag: "hello"},
+					Observed: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+										"spec":
+											{
+												"specFoo": "specBar"
+											}
+										}`),
+						},
+						Resources: map[string]*fnv1beta1.Resource{
+							"foo": {
+								Resource: resource.MustStructJSON(`{
+											"metadata": {
+												"name": "foo"
+											}
+										}`),
+							},
+						},
+					},
+					Desired: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+											"metadata": {
+												"annotations": {
+													"dummy.fn.crossplane.io/illegal": "false"
+												}
+											}
+										}`),
+						},
+					},
+					Input: resource.MustStructObject(
+						&v1beta1.Input{
+							Spec: v1beta1.InputSpec{
+								Scripts: map[string]string{
+									"hello.rego": `
+package crossplane
+
+import future.keywords.if
+
+names[name] {
+	input.request.desired.resources[name]
+} {
+	input.request.observed.resources[name]
+}
+
+resources := { key : {"resource": {"metadata": {"annotations": {"dummy.fn.crossplane.io/specFoo": "specBar"}}}} | key := names[_]}
+
+patch := { 
+	"desired": {
+		"resources": resources,
+		"composite": {
+			"resource": {
+				"metadata": {
+					"annotations": {
+						"dummy.fn.crossplane.io/specFoo": "specBar"
+					},
+				},
+			},
+		},
+    },
+}
+
+response := object.union(input.response, patch) if input.request.observed.composite.resource.spec.specFoo == "specBar" else := input.response
+		`,
+								},
+							},
+						}),
+				},
+			},
+			want: want{
+				rsp: &fnv1beta1.RunFunctionResponse{
+					Meta:    &fnv1beta1.ResponseMeta{Tag: "hello", Ttl: durationpb.New(response.DefaultTTL)},
+					Results: []*fnv1beta1.Result{},
+					Desired: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+											"metadata": {
+												"annotations": {
+													"dummy.fn.crossplane.io/illegal": "false",
+													"dummy.fn.crossplane.io/specFoo": "specBar"
+												}
+											}
+										}`),
+						},
+						Resources: map[string]*fnv1beta1.Resource{
+							"foo": {
+								Resource: resource.MustStructJSON(`{
+											"metadata": {
+												"annotations": {
+													"dummy.fn.crossplane.io/specFoo": "specBar"
+												}
+											}
+										}`),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for name, tc := range cases {
