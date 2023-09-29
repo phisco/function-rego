@@ -1,0 +1,44 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: test-crossplane
+spec:
+  compositeTypeRef:
+    apiVersion: database.example.com/v1alpha1
+    kind: NoSQL
+  mode: Pipeline
+  pipeline:
+    - step: checkEverythingIsLegal
+      functionRef:
+        name: function-rego
+      input:
+        apiVersion: rego.fn.crossplane.io/v1beta1
+        kind: Input
+        spec:
+          scripts:
+            "something.rego": |
+              package crossplane
+              import future.keywords.if
+
+              formatResult(meta) := {"severity": meta.custom.severity, "message": meta.description}
+
+              # METADATA
+              # title: Deny illegal composite resources
+              # description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+              # custom:
+              #  severity: SEVERITY_FATAL
+                results[formatResult(rego.metadata.rule())] {
+                input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+                not input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"]
+              }
+
+              # METADATA
+              # title: Deny illegal composite resources even if patched
+              # description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+              # custom:
+              #  severity: SEVERITY_FATAL
+                results[formatResult(rego.metadata.rule())] {
+                input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+              }
+
+              response = object.union(input.response, {"results": results})

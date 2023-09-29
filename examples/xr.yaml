@@ -1,0 +1,8 @@
+apiVersion: nopexample.org/v1
+kind: XBucket
+metadata:
+  name: test-rego
+  annotations:
+    dummy.fn.crossplane.io/illegal: "true"
+spec:
+  bucketRegion: us-east-2

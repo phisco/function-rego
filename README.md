@@ -1,26 +1,11 @@
 # function-rego
 
-A [Crossplane] Composition Function template, for Go.
+A [Crossplane] Composition Function to run
+[Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies.
 
 ## What is this?
 
-This is a template for a [Composition Function][function-design].
-
-Composition Functions let you extend Crossplane with new ways to 'do
-Composition' - i.e. new ways to produce composed resources given a claim or XR.
-You use Composition Functions instead of the `resources` array of templates.
-
-This template creates a beta-style Function. Functions created from this
-template won't work with Crossplane v1.13 or earlier - it targets the
-[implementation of Functions][function-pr] coming with Crossplane v1.14 in late
-October.
-
-Keep in mind what is shown here is __far from the final developer experience__
-we want for Functions! This is the very first iteration - we have to start
-somewhere. We want your feedback - what do you want to see from the developer
-experience? Please [raise a Crossplane issue][new-crossplane-issue] with ideas.
-
-Here's an example of a Composition that uses a Composition Function.
+Here's an example of a Composition that uses this Composition Function.
 
 ```yaml
 apiVersion: apiextensions.crossplane.io/v1
@@ -33,17 +18,22 @@ spec:
     kind: NoSQL
   mode: Pipeline
   pipeline:
-  - step: run-example-function
+  - step: checkEverythingIsLegal
     functionRef:
-      name: function-example
+      name: function-rego
     input:
-      apiVersion: template.fn.crossplane.io/v1beta1
+      apiVersion: rego.fn.crossplane.io/v1beta1
       kind: Input
-      # Add any input fields here!
-```
+      spec:
+        policy: |
+          package crossplane
 
-Notice that it has a `pipeline` (of Composition Functions) instead of an array
-of `resources`.
+          results = [
+            {"severity": "SEVERITY_NORMAL", "message": "Hello World!"},
+          ]
+
+          response = object.union(input.response, {"results": results})
+```
 
 ## Developing a Function
 
@@ -96,7 +86,7 @@ manually and tell `xrender` where to find it.
 apiVersion: pkg.crossplane.io/v1beta1
 kind: Function
 metadata:
-  name: function-test # Use your Function's name!
+  name: function-rego
   annotations:
     # xrender will try to talk to your Function at localhost:9443
     xrender.crossplane.io/runtime: Development
@@ -118,32 +108,7 @@ $ go install github.com/crossplane-contrib/xrender@latest
 
 # Run it! See the xrender repo for these examples.
 $ xrender examples/xr.yaml examples/composition.yaml examples/functions.yaml
----
-apiVersion: nopexample.org/v1
-kind: XBucket
-metadata:
-  name: test-xrender
-status:
-  bucketRegion: us-east-2
----
-apiVersion: s3.aws.upbound.io/v1beta1
-kind: Bucket
-metadata:
-  annotations:
-    crossplane.io/composition-resource-name: my-bucket
-  generateName: test-xrender-
-  labels:
-    crossplane.io/composite: test-xrender
-  ownerReferences:
-  - apiVersion: nopexample.org/v1
-    blockOwnerDeletion: true
-    controller: true
-    kind: XBucket
-    name: test-xrender
-    uid: ""
-spec:
-  forProvider:
-    region: us-east-2
+xrender: error: main.CLI.Run(): cannot render composite resource: pipeline step "checkEverythingIsLegal" returned a fatal result: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
 ```
 
 You can see an example Composition above. There's also some examples in the
