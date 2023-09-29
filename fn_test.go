@@ -36,7 +36,7 @@ func TestRunFunction(t *testing.T) {
 		args   args
 		want   want
 	}{
-		"ResponseIsReturned": {
+		"FataIfNoInputScripts": {
 			reason: "The Function should return a fatal result if no input script was specified",
 			args: args{
 				ctx: context.Background(),
@@ -60,7 +60,7 @@ func TestRunFunction(t *testing.T) {
 				},
 			},
 		},
-		"ResponseIsReturnedWithScript": {
+		"NormalSeverityWithScript": {
 			reason: "The Function should properly return results with a script",
 			args: args{
 				ctx: context.Background(),
@@ -73,9 +73,11 @@ func TestRunFunction(t *testing.T) {
 									"hello.rego": `
 package crossplane
 
-response.results = [
+results = [
 		{"severity": "SEVERITY_NORMAL", "message": "Hello World!"},
 ]
+
+response = object.union(input.response, {"results": results})
 `,
 								},
 							},
@@ -94,8 +96,8 @@ response.results = [
 				},
 			},
 		},
-		"ResponseIsReturnedWithScriptSettingDesiredResourceShouldBeIgnored": {
-			reason: "The Function should properly return desired resources",
+		"FatalIfRuleTrueNoPreviousDesired": {
+			reason: "The Function should return a fatal result if the rule is true, without a previous desired state",
 			args: args{
 				ctx: context.Background(),
 				req: &fnv1beta1.RunFunctionRequest{
@@ -129,6 +131,16 @@ formatResult(meta) := {"severity": meta.custom.severity, "message": meta.descrip
 #  severity: SEVERITY_FATAL
 results[formatResult(rego.metadata.rule())] {
 	input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+	not input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"]
+} 
+
+# METADATA
+# title: Deny illegal composite resources even if patched
+# description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+# custom:
+#  severity: SEVERITY_FATAL
+results[formatResult(rego.metadata.rule())] {
+	input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
 }
 
 response = object.union(input.response, {"results": results})
@@ -150,8 +162,8 @@ response = object.union(input.response, {"results": results})
 				},
 			},
 		},
-		"ResponseIsReturnedWithScriptSettingDesiredResourcePreservingInputDesiredResources": {
-			reason: "The Function should properly return desired resources",
+		"FatalIfRuleTrueWithPreviousDesired": {
+			reason: "The Function should properly return desired resources, even on fatal",
 			args: args{
 				ctx: context.Background(),
 				req: &fnv1beta1.RunFunctionRequest{
@@ -189,6 +201,7 @@ import future.keywords.if
 
 formatResult(meta) := {"severity": meta.custom.severity, "message": meta.description}
 
+
 # METADATA
 # title: Deny illegal composite resources
 # description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
@@ -196,6 +209,10 @@ formatResult(meta) := {"severity": meta.custom.severity, "message": meta.descrip
 #  severity: SEVERITY_FATAL
 results[formatResult(rego.metadata.rule())] {
 	input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+	not input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"]
+} {
+	input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+	input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
 }
 
 response = object.union(input.response, {"results": results})
@@ -228,8 +245,8 @@ response = object.union(input.response, {"results": results})
 				},
 			},
 		},
-		"ResponseIsReturnedWithScriptSettingDesiredResourcePreservingInputDesiredResourcesAccept": {
-			reason: "The Function should properly return desired resources",
+		"NoFatalIfRuleFalseWithPreviousDesired": {
+			reason: "The Function should properly no result if the rule is false, with a previous desired state",
 			args: args{
 				ctx: context.Background(),
 				req: &fnv1beta1.RunFunctionRequest{
@@ -274,6 +291,16 @@ formatResult(meta) := {"severity": meta.custom.severity, "message": meta.descrip
 #  severity: SEVERITY_FATAL
 results[formatResult(rego.metadata.rule())] {
 	input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+	not input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"]
+} 
+
+# METADATA
+# title: Deny illegal composite resources even if patched
+# description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+# custom:
+#  severity: SEVERITY_FATAL
+results[formatResult(rego.metadata.rule())] {
+	input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
 }
 
 response = object.union(input.response, {"results": results})
@@ -288,6 +315,113 @@ response = object.union(input.response, {"results": results})
 					Meta:    &fnv1beta1.ResponseMeta{Tag: "hello", Ttl: durationpb.New(response.DefaultTTL)},
 					Results: []*fnv1beta1.Result{},
 					Desired: &fnv1beta1.State{
+						Resources: map[string]*fnv1beta1.Resource{
+							"foo": {
+								Resource: resource.MustStructJSON(`{
+									"metadata": {
+										"name": "foo"
+									}
+								}`),
+							},
+						},
+					},
+				},
+			},
+		},
+		"FatalIfRuleTrueDueToDesired": {
+			reason: "The function should return fatal even if the rule is true due to the desired state only",
+			args: args{
+				ctx: context.Background(),
+				req: &fnv1beta1.RunFunctionRequest{
+					Meta: &fnv1beta1.RequestMeta{Tag: "hello"},
+					Observed: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+									"metadata": {
+										"annotations": {
+											"dummy.fn.crossplane.io/illegal": "false"
+										}
+									}
+								}`),
+						},
+					},
+					Desired: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+									"metadata": {
+										"annotations": {
+											"dummy.fn.crossplane.io/illegal": "true"
+										}
+									}
+								}`),
+						},
+						Resources: map[string]*fnv1beta1.Resource{
+							"foo": {
+								Resource: resource.MustStructJSON(`{
+									"metadata": {
+										"name": "foo"
+									}
+								}`),
+							},
+						},
+					},
+					Input: resource.MustStructObject(
+						&v1beta1.Input{
+							Spec: v1beta1.InputSpec{
+								Scripts: map[string]string{
+									"hello.rego": `
+package crossplane
+
+import future.keywords.if
+
+formatResult(meta) := {"severity": meta.custom.severity, "message": meta.description}
+
+
+# METADATA
+# title: Deny illegal composite resources
+# description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+# custom:
+#  severity: SEVERITY_FATAL
+results[formatResult(rego.metadata.rule())] {
+	input.request.observed.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+	not input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"]
+} 
+
+# METADATA
+# title: Deny illegal composite resources even if patched
+# description: Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed
+# custom:
+#  severity: SEVERITY_FATAL
+results[formatResult(rego.metadata.rule())] {
+	input.request.desired.composite.resource.metadata.annotations["dummy.fn.crossplane.io/illegal"] == "true"
+}
+
+response = object.union(input.response, {"results": results})
+`,
+								},
+							},
+						}),
+				},
+			},
+			want: want{
+				rsp: &fnv1beta1.RunFunctionResponse{
+					Meta: &fnv1beta1.ResponseMeta{Tag: "hello", Ttl: durationpb.New(response.DefaultTTL)},
+					Results: []*fnv1beta1.Result{
+						{
+							Severity: fnv1beta1.Severity_SEVERITY_FATAL,
+							Message:  "Composite resources with the annotation dummy.fn.crossplane.io/illegal set to true are not allowed",
+						},
+					},
+					Desired: &fnv1beta1.State{
+						Composite: &fnv1beta1.Resource{
+							Resource: resource.MustStructJSON(`{
+									"metadata": {
+										"annotations": {
+											"dummy.fn.crossplane.io/illegal": "true"
+										}
+									}
+								}`),
+						},
 						Resources: map[string]*fnv1beta1.Resource{
 							"foo": {
 								Resource: resource.MustStructJSON(`{
