@@ -1,6 +1,6 @@
 // Package v1beta1 contains the input type for this Function
 // +kubebuilder:object:generate=true
-// +groupName=template.fn.crossplane.io
+// +groupName=rego.fn.crossplane.io
 // +versionName=v1beta1
 package v1beta1
 
@@ -22,6 +22,10 @@ type Input struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Example is an example field. Replace it with whatever input you need. :)
-	Example string `json:"example"`
+	Spec InputSpec `json:"spec"`
+}
+
+// InputSpec defines the desired state of Input
+type InputSpec struct {
+	Scripts map[string]string `json:"scripts"`
 }

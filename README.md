@@ -1,4 +1,4 @@
-# function-template-go
+# function-rego
 
 A [Crossplane] Composition Function template, for Go.
 
@@ -57,8 +57,8 @@ $ go generate ./...
 
 # Run tests
 $ go test -cover ./...
-?       github.com/crossplane/function-template-go/input/v1beta1      [no test files]
-ok      github.com/crossplane/function-template-go    0.006s  coverage: 25.8% of statements
+?       github.com/crossplane/function-rego/input/v1beta1      [no test files]
+ok      github.com/crossplane/function-rego    0.006s  coverage: 25.8% of statements
 
 # Lint the code
 $ docker run --rm -v $(pwd):/app -v ~/.cache/golangci-lint/v1.54.2:/root/.cache -w /app golangci/golangci-lint:v1.54.2 golangci-lint run
@@ -73,7 +73,7 @@ https://github.com/upbound/up/.
 
 To turn this template into a working Function, the process is:
 
-1. Replace `function-template-go` with your Function's name in
+1. Replace `function-rego` with your Function's name in
    `package/crossplane.yaml`, `go.mod`, and any Go imports
 1. Update `input/v1beta1/input.go` to reflect your desired input
 1. Run `go generate ./...`
